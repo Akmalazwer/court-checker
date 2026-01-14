@@ -7,7 +7,7 @@ from playwright.sync_api import sync_playwright
 from gtts import gTTS
 
 # ================= CONFIG =================
-CASE_IDS = ["141/24/MR"]   # <<< ONLY CHANGE THIS
+CASE_IDS = ["288/06/IP"]   # <<< ONLY CHANGE THIS
 SITE_BASE = "https://www.colchc.gov.lk/daily-court-lists"
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
@@ -22,7 +22,7 @@ DOWNLOAD_DIR = "/tmp/court"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 # ==========================================
 
-today = datetime.date.today()
+today = datetime.date.today() - datetime.timedelta(days=1)
 day = str(today.day)
 month = str(today.month)
 year = str(today.year)
