@@ -1,20 +1,5 @@
-# Python
+# Python virtual environment
+venv/
 __pycache__/
 *.pyc
-
-# Virtual environment
-venv/
-.env
-
-# Playwright
-.playwright/
-
-# OS files
-.DS_Store
-
-# PDFs / temp
-/tmp/
-*.pdf
-*.mp3
-
 
