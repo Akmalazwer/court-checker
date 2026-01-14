@@ -10,9 +10,13 @@ from gtts import gTTS
 CASE_IDS = ["141/24/MR"]   # <<< ONLY CHANGE THIS
 SITE_BASE = "https://www.colchc.gov.lk/daily-court-lists"
 
-
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 CHAT_IDS_RAW = os.environ.get("CHAT_IDS", "")
 CHAT_IDS = [int(x) for x in CHAT_IDS_RAW.split(",") if x.strip()]
+
+if not BOT_TOKEN or not CHAT_IDS:
+    print("❌ BOT_TOKEN or CHAT_IDS not set. Exiting.")
+    exit(1)
 
 DOWNLOAD_DIR = "/tmp/court"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
@@ -22,7 +26,6 @@ today = datetime.date.today()
 day = str(today.day)
 month = str(today.month)
 year = str(today.year)
-
 MONTH_NAME = today.strftime("%B").lower()
 SITE_URL = f"{SITE_BASE}/{year}/{MONTH_NAME}"
 
@@ -43,13 +46,14 @@ with sync_playwright() as p:
     context = browser.new_context(accept_downloads=True)
     page = context.new_page()
 
-    page.goto(SITE_URL, timeout=60000)
-    page.wait_for_selector(selector, timeout=60000)
+    page.goto(SITE_URL, timeout=90000)
+    page.wait_for_selector(selector, timeout=90000)
 
-    with page.expect_download():
+    # Use expect_download context manager for CI-friendly downloads
+    with page.expect_download(timeout=90000) as download_info:
         page.click(selector)
 
-    download = page.wait_for_event("download")
+    download = download_info.value
     download.save_as(pdf_path)
     browser.close()
 
@@ -63,17 +67,17 @@ found = [c for c in CASE_IDS if c.lower() in text.lower()]
 
 if not found:
     print("No case found today.")
-    exit()
+    exit(0)
 
 # ============ MARK PDF ============
 doc = fitz.open(pdf_path)
 for page in doc:
     for case in found:
         for rect in page.search_for(case):
-            box = page.add_rect_annot(rect)
-            box.set_colors(stroke=(1, 0, 0))
-            box.set_border(width=2)
-            box.update()
+            annot = page.add_rect_annot(rect)
+            annot.set_colors(stroke=(1, 0, 0))
+            annot.set_border(width=2)
+            annot.update()
 doc.save(marked_pdf)
 doc.close()
 
@@ -92,11 +96,13 @@ message = (
 )
 
 for chat_id in CHAT_IDS:
+    # Send message
     requests.post(
         f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
         data={"chat_id": chat_id, "text": message, "parse_mode": "Markdown"}
     )
 
+    # Send voice alert
     with open(voice_path, "rb") as v:
         requests.post(
             f"https://api.telegram.org/bot{BOT_TOKEN}/sendVoice",
@@ -104,6 +110,7 @@ for chat_id in CHAT_IDS:
             files={"voice": v}
         )
 
+    # Send marked PDF
     with open(marked_pdf, "rb") as f:
         requests.post(
             f"https://api.telegram.org/bot{BOT_TOKEN}/sendDocument",
