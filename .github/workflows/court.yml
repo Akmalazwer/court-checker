@@ -27,7 +27,7 @@ jobs:
             libatk-bridge2.0-0 \
             libxkbcommon0 \
             libgtk-3-0 \
-            libasound2 \
+            libasound2t64 \
             libgbm1 \
             libxshmfence1
 
@@ -44,4 +44,3 @@ jobs:
           CASE_ID: "141/24/MR"
         run: |
           python court_checker.py
-
