@@ -10,8 +10,9 @@ from gtts import gTTS
 CASE_IDS = ["141/24/MR"]   # <<< ONLY CHANGE THIS
 SITE_BASE = "https://www.colchc.gov.lk/daily-court-lists"
 
-BOT_TOKEN = os.environ["BOT_TOKEN"]
-CHAT_IDS = [int(x) for x in os.environ["CHAT_IDS"].split(",")]
+
+CHAT_IDS_RAW = os.environ.get("CHAT_IDS", "")
+CHAT_IDS = [int(x) for x in CHAT_IDS_RAW.split(",") if x.strip()]
 
 DOWNLOAD_DIR = "/tmp/court"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
