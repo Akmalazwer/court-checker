@@ -1,5 +1,5 @@
 import os
-import datetime
+from datetime import datetime, timedelta, timezone
 import requests
 import pdfplumber
 import fitz  # PyMuPDF
@@ -22,7 +22,11 @@ DOWNLOAD_DIR = "/tmp/court"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 # ==========================================
 
-today = datetime.date.today() - datetime.timedelta(days=1)
+SL_TZ = timezone(timedelta(hours=5, minutes=30))
+
+# Current date in Sri Lanka
+today = datetime.now(tz=SL_TZ).date()
+today = today - timedelta(days=1)
 day = str(today.day)
 month = str(today.month)
 year = str(today.year)
