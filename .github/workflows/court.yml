@@ -43,4 +43,4 @@ jobs:
           CHAT_IDS: ${{ secrets.CHAT_IDS }}
           CASE_ID: "141/24/MR"
         run: |
-          python court_checker.py
+          python check_case.py
