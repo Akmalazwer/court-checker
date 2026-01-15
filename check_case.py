@@ -54,12 +54,21 @@ with sync_playwright() as p:
     page.wait_for_selector(selector, timeout=90000)
 
     # Use expect_download context manager for CI-friendly downloads
-    with page.expect_download(timeout=90000) as download_info:
-        page.click(selector)
+download = None
 
-    download = download_info.value
-    download.save_as(pdf_path)
+try:
+    with page.expect_download(timeout=15000):
+        page.click(selector)
+    download = page.wait_for_event("download", timeout=15000)
+except:
+    print("ℹ️ No PDF available for today. Exiting safely.")
+
+if not download:
     browser.close()
+    exit(0)
+
+download.save_as(pdf_path)
+
 
 # ============ READ PDF ============
 text = ""
