@@ -25,7 +25,7 @@ SL_TZ = timezone(timedelta(hours=5, minutes=30))
 
 # ---------- DATE TO CHECK (CHANGE IF NEEDED) ----------
 # Example test date
-CHECK_DATE = datetime.date(2026, 1, 13)
+CHECK_DATE = datetime.date(2026, 1, 15)
 # For production later, you will replace this with "today_sl.date()"
 
 # ---------- TIME LOGGING ----------
