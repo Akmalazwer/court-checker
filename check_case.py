@@ -24,7 +24,7 @@ if not BOT_TOKEN or not CHAT_IDS:
 SL_TZ = timezone(timedelta(hours=5, minutes=30))
 
 # -------- TEST DATE (13 January) ----
-TEST_DATE = datetime.date(2025, 1, 13)
+TEST_DATE = datetime.date(2026, 1, 13)
 
 today_sl = datetime.datetime.now(SL_TZ)
 print("🕒 Workflow Time (UTC):", datetime.datetime.now(timezone.utc))
