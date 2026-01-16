@@ -6,12 +6,11 @@ import fitz  # PyMuPDF
 from playwright.sync_api import sync_playwright
 from gtts import gTTS
 from datetime import timezone, timedelta
+import json
 
 # ================= CONFIG =================
 CASE_IDS = ["141/24/MR"]
-
 SITE_BASE = "https://www.colchc.gov.lk/daily-court-lists"
-
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 CHAT_IDS_RAW = os.environ.get("CHAT_IDS", "")
 CHAT_IDS = [int(x) for x in CHAT_IDS_RAW.split(",") if x.strip()]
@@ -20,34 +19,41 @@ if not BOT_TOKEN or not CHAT_IDS:
     print("❌ BOT_TOKEN or CHAT_IDS not set. Exiting.")
     exit(1)
 
-# ---------- Sri Lanka Timezone ----------
+# ---------- Sri Lanka timezone ----------
 SL_TZ = timezone(timedelta(hours=5, minutes=30))
 
-# ---------- DATE TO CHECK (CHANGE IF NEEDED) ----------
-# Example test date
-CHECK_DATE = datetime.date(2026, 1, 13)
-# For production later, you will replace this with "today_sl.date()"
+# ---------- CACHE to prevent duplicate alerts ----------
+CACHE_FILE = "/tmp/court_alert_cache.json"
+if os.path.exists(CACHE_FILE):
+    with open(CACHE_FILE, "r") as f:
+        ALERT_CACHE = json.load(f)
+else:
+    ALERT_CACHE = {}
 
-# ---------- TIME LOGGING ----------
+# ---------- TODAY (SL Time) ----------
 utc_now = datetime.datetime.utcnow().replace(tzinfo=timezone.utc)
 sl_now = utc_now.astimezone(SL_TZ)
+today = sl_now.date()
 
 print("🕒 Workflow Time (UTC):", utc_now)
-print("🕒 Workflow Time (SL): ", sl_now)
-print("📅 Checking court list for:", CHECK_DATE)
+print("🕒 Workflow Time (SL):", sl_now)
+print("📅 Checking court list for:", today)
+
+# ---------- SKIP if already alerted ----------
+cache_key = today.strftime("%Y-%m-%d")
+if ALERT_CACHE.get(cache_key):
+    print("ℹ️ Already alerted today. Exiting.")
+    exit(0)
 
 # ---------- DATE PARTS ----------
-day = str(CHECK_DATE.day)
-month = str(CHECK_DATE.month)
-year = str(CHECK_DATE.year)
-
-MONTH_NAME = CHECK_DATE.strftime("%B").lower()
+day = str(today.day)
+month = str(today.month)
+year = str(today.year)
+MONTH_NAME = today.strftime("%B").lower()
 SITE_URL = f"{SITE_BASE}/{year}/{MONTH_NAME}"
 
-# ---------- PATHS ----------
 DOWNLOAD_DIR = "/tmp/court"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
-
 pdf_path = f"{DOWNLOAD_DIR}/cause_{year}_{month}_{day}.pdf"
 marked_pdf = f"{DOWNLOAD_DIR}/cause_MARKED_{year}_{month}_{day}.pdf"
 voice_path = f"{DOWNLOAD_DIR}/alert.mp3"
@@ -60,26 +66,28 @@ selector = (
 )
 
 # ================= DOWNLOAD PDF =================
-with sync_playwright() as p:
-    browser = p.chromium.launch(headless=True)
-    context = browser.new_context(accept_downloads=True)
-    page = context.new_page()
+def download_pdf():
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context(accept_downloads=True)
+        page = context.new_page()
+        page.goto(SITE_URL, timeout=60000)
+        page.wait_for_selector(selector, timeout=30000)
 
-    page.goto(SITE_URL, timeout=60000)
-    page.wait_for_selector(selector, timeout=30000)
+        try:
+            with page.expect_download(timeout=15000) as d:
+                page.click(selector)
+            download = d.value
+            download.save_as(pdf_path)
+            print("✅ PDF downloaded")
+            return True
+        except Exception as e:
+            print("⚠️ No PDF download available for today.")
+            print("ℹ️ Reason:", str(e))
+            return False
 
-    try:
-        with page.expect_download(timeout=15000) as d:
-            page.click(selector)
-
-        download = d.value
-        download.save_as(pdf_path)
-        print("✅ PDF downloaded")
-
-    except Exception as e:
-        print("⚠️ No PDF download available for this date.")
-        print("ℹ️ Reason:", str(e))
-        exit(0)
+if not download_pdf():
+    exit(0)
 
 # ================= READ PDF =================
 text = ""
@@ -88,7 +96,6 @@ with pdfplumber.open(pdf_path) as pdf:
         text += p.extract_text() or ""
 
 found = [c for c in CASE_IDS if c.lower() in text.lower()]
-
 if not found:
     print("ℹ️ No matching case found in PDF.")
     exit(0)
@@ -104,24 +111,21 @@ for page in doc:
             annot.set_colors(stroke=(1, 0, 0))
             annot.set_border(width=2)
             annot.update()
-
 doc.save(marked_pdf)
 doc.close()
-
 print("✅ PDF marked")
 
 # ================= VOICE ALERT =================
 voice_text = (
     f"Alert. Your court case {', '.join(found)} "
-    f"is listed on {CHECK_DATE.strftime('%d %B %Y')}."
+    f"is listed today, {today.strftime('%d %B %Y')}."
 )
-
 gTTS(text=voice_text, lang="en").save(voice_path)
 
 # ================= TELEGRAM =================
 message = (
     "⚖️ *Court Case Listed*\n\n"
-    f"📅 Date: {CHECK_DATE.strftime('%d-%m-%Y')}\n"
+    f"📅 Date: {today.strftime('%d-%m-%Y')}\n"
     f"📌 Case: {', '.join(found)}"
 )
 
@@ -150,3 +154,8 @@ for chat_id in CHAT_IDS:
         )
 
 print("✅ Telegram alert sent successfully")
+
+# ================= UPDATE CACHE =================
+ALERT_CACHE[cache_key] = True
+with open(CACHE_FILE, "w") as f:
+    json.dump(ALERT_CACHE, f)
