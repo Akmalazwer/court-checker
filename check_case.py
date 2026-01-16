@@ -59,38 +59,23 @@ with sync_playwright() as p:
     page = context.new_page()
 
     page.goto(SITE_URL, timeout=60000)
-    page.wait_for_selector(selector, timeout=60000)
+    page.wait_for_selector(selector, timeout=30000)
 
-download = None
+    try:
+        with page.expect_download(timeout=15000) as d:
+            page.click(selector)
 
-try:
-    with page.expect_download(timeout=15000) as d:
-        page.click(selector)
-    download = d.value
-except Exception:
-    print("⚠️ No PDF download available for this date.")
-    browser.close()
-    exit(0)
+        download = d.value
+        download.save_as(pdf_path)
+        print("✅ PDF downloaded")
 
-download.save_as(pdf_path)
-browser.close()
+    except Exception as e:
+        print("⚠️ No PDF download available for this date.")
+        print("ℹ️ Reason:", str(e))
+        # IMPORTANT: DO NOT close browser
+        # IMPORTANT: DO NOT call browser.close()
+        exit(0)
 
-
-print("✅ PDF downloaded")
-
-# ================= READ PDF =================
-text = ""
-with pdfplumber.open(pdf_path) as pdf:
-    for page in pdf.pages:
-        text += page.extract_text() or ""
-
-found = [c for c in CASE_IDS if c.lower() in text.lower()]
-
-if not found:
-    print("ℹ️ No case found for this date.")
-    exit(0)
-
-print("⚖️ Case found:", found)
 
 # ================= MARK PDF =================
 doc = fitz.open(pdf_path)
