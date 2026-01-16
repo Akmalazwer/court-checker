@@ -2,8 +2,8 @@ name: Court Case Daily Checker
 
 on:
   schedule:
-    # Runs at 01:30, 03:30, 05:30, 07:30, 09:30, 11:30, 13:30, 15:30, 16:30 UTC
-    - cron: "30 1,3,5,7,9,11,13,15,16 * * *"
+    # Runs every minute (for testing only)
+    - cron: "* * * * *"
   workflow_dispatch:
 
 jobs:
