@@ -61,12 +61,20 @@ with sync_playwright() as p:
     page.goto(SITE_URL, timeout=60000)
     page.wait_for_selector(selector, timeout=60000)
 
-    with page.expect_download() as d:
-        page.click(selector)
+download = None
 
+try:
+    with page.expect_download(timeout=15000) as d:
+        page.click(selector)
     download = d.value
-    download.save_as(pdf_path)
+except Exception:
+    print("⚠️ No PDF download available for this date.")
     browser.close()
+    exit(0)
+
+download.save_as(pdf_path)
+browser.close()
+
 
 print("✅ PDF downloaded")
 
