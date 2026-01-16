@@ -20,24 +20,31 @@ if not BOT_TOKEN or not CHAT_IDS:
     print("❌ BOT_TOKEN or CHAT_IDS not set. Exiting.")
     exit(1)
 
-# -------- Sri Lanka Timezone --------
+# ---------- Sri Lanka Timezone ----------
 SL_TZ = timezone(timedelta(hours=5, minutes=30))
 
-# -------- TEST DATE (13 January) ----
-TEST_DATE = datetime.date(2026, 1, 13)
+# ---------- DATE TO CHECK (CHANGE IF NEEDED) ----------
+# Example test date
+CHECK_DATE = datetime.date(2026, 1, 13)
+# For production later, you will replace this with "today_sl.date()"
 
-today_sl = datetime.datetime.now(SL_TZ)
-print("🕒 Workflow Time (UTC):", datetime.datetime.now(timezone.utc))
-print("🕒 Workflow Time (SL): ", today_sl)
-print("📅 Checking court list for:", TEST_DATE)
+# ---------- TIME LOGGING ----------
+utc_now = datetime.datetime.utcnow().replace(tzinfo=timezone.utc)
+sl_now = utc_now.astimezone(SL_TZ)
 
-day = str(TEST_DATE.day)
-month = str(TEST_DATE.month)
-year = str(TEST_DATE.year)
+print("🕒 Workflow Time (UTC):", utc_now)
+print("🕒 Workflow Time (SL): ", sl_now)
+print("📅 Checking court list for:", CHECK_DATE)
 
-MONTH_NAME = TEST_DATE.strftime("%B").lower()
+# ---------- DATE PARTS ----------
+day = str(CHECK_DATE.day)
+month = str(CHECK_DATE.month)
+year = str(CHECK_DATE.year)
+
+MONTH_NAME = CHECK_DATE.strftime("%B").lower()
 SITE_URL = f"{SITE_BASE}/{year}/{MONTH_NAME}"
 
+# ---------- PATHS ----------
 DOWNLOAD_DIR = "/tmp/court"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
@@ -72,43 +79,60 @@ with sync_playwright() as p:
     except Exception as e:
         print("⚠️ No PDF download available for this date.")
         print("ℹ️ Reason:", str(e))
-        # IMPORTANT: DO NOT close browser
-        # IMPORTANT: DO NOT call browser.close()
         exit(0)
 
+# ================= READ PDF =================
+text = ""
+with pdfplumber.open(pdf_path) as pdf:
+    for p in pdf.pages:
+        text += p.extract_text() or ""
+
+found = [c for c in CASE_IDS if c.lower() in text.lower()]
+
+if not found:
+    print("ℹ️ No matching case found in PDF.")
+    exit(0)
+
+print("⚖️ Case found:", found)
 
 # ================= MARK PDF =================
 doc = fitz.open(pdf_path)
 for page in doc:
     for case in found:
         for rect in page.search_for(case):
-            box = page.add_rect_annot(rect)
-            box.set_colors(stroke=(1, 0, 0))
-            box.set_border(width=2)
-            box.update()
+            annot = page.add_rect_annot(rect)
+            annot.set_colors(stroke=(1, 0, 0))
+            annot.set_border(width=2)
+            annot.update()
+
 doc.save(marked_pdf)
 doc.close()
 
 print("✅ PDF marked")
 
-# ================= VOICE =================
+# ================= VOICE ALERT =================
 voice_text = (
     f"Alert. Your court case {', '.join(found)} "
-    f"is listed on {TEST_DATE.strftime('%d %B %Y')}."
+    f"is listed on {CHECK_DATE.strftime('%d %B %Y')}."
 )
+
 gTTS(text=voice_text, lang="en").save(voice_path)
 
 # ================= TELEGRAM =================
 message = (
     "⚖️ *Court Case Listed*\n\n"
-    f"📅 Date: {TEST_DATE.strftime('%d-%m-%Y')}\n"
+    f"📅 Date: {CHECK_DATE.strftime('%d-%m-%Y')}\n"
     f"📌 Case: {', '.join(found)}"
 )
 
 for chat_id in CHAT_IDS:
     requests.post(
         f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-        data={"chat_id": chat_id, "text": message, "parse_mode": "Markdown"}
+        data={
+            "chat_id": chat_id,
+            "text": message,
+            "parse_mode": "Markdown"
+        }
     )
 
     with open(voice_path, "rb") as v:
