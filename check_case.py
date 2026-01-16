@@ -26,7 +26,7 @@ SL_TZ = timezone(timedelta(hours=5, minutes=30))
 
 # Current date in Sri Lanka
 today = datetime.now(tz=SL_TZ).date()
-#today = today - timedelta(days=1)
+today = today - timedelta(days=3)
 day = str(today.day)
 month = str(today.month)
 year = str(today.year)
